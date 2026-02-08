@@ -12,7 +12,16 @@ st.set_page_config(page_title="AI Nutrition Pro", page_icon="🥗", layout="wide
 # --- 2. AI 点评逻辑 ---
 def get_ai_advice(food_name, protein, fat):
     api_url = "https://api.deepseek.com/chat/completions"
-    api_key = "sk-05cc5c6c897f42ca8c74bde673a157e1" 
+    
+    # --- 核心修改：从 secrets 中读取 Key ---
+    # 这里的名字必须和你刚才在 Secrets 窗口填的 DEEPSEEK_API_KEY 一模一样
+    try:
+        api_key = st.secrets["DEEPSEEK_API_KEY"]
+    except:
+        return "未配置 API Key，请联系管理员。"
+    
+    # ... 下面的 headers 和 data 代码保持不变 ...
+
     
     prompt = (f"你是一位专业且略带幽默的健身教练。请评价食物：{food_name}。"
               f"每100g含蛋白质{protein}g，脂肪{fat}g。"
@@ -84,3 +93,4 @@ if not df.empty:
         st.dataframe(filtered_df[['Food_Name', 'Protein_Value', 'Fat_Value']])
     else:
         st.warning("No matches found.")
+
