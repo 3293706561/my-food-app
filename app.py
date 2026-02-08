@@ -38,22 +38,33 @@ def get_ai_advice(food_name, protein, fat):
         return f"连接 AI 失败: {e}"
 
 
-# --- 3. 字体与图表设置 (自适应环境) ---
-plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+# --- 3. 图表中文显示终极补丁 ---
+import matplotlib.font_manager as fm
 
-# 尝试寻找 Windows 字体路径
-win_font = r'C:\Windows\Fonts\msyh.ttc'
+# 解决负号显示
+plt.rcParams['axes.unicode_minus'] = False 
 
-if os.path.exists(win_font):
-    # 本地环境：使用微软雅黑
-    prop = fm.FontProperties(fname=win_font)
-    plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
-else:
-    # 云端 Linux 环境：不指定路径，使用系统默认字体
-    prop = fm.FontProperties() 
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'sans-serif']
-    st.info("💡 当前运行在云端环境，图表将使用系统默认字体显示。")
+def set_chinese_font():
+    # 方案 A: 尝试 Linux 云端常用中文字体路径
+    linux_fonts = [
+        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+        '/usr/share/fonts/truetype/arphic/uming.ttc'
+    ]
+    for font in linux_fonts:
+        if os.path.exists(font):
+            plt.rcParams['font.sans-serif'] = ['WenQuanYi Zen Hei']
+            return fm.FontProperties(fname=font)
+            
+    # 方案 B: 尝试 Windows 本地路径
+    win_font = r'C:\Windows\Fonts\msyh.ttc'
+    if os.path.exists(win_font):
+        plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']
+        return fm.FontProperties(fname=win_font)
+    
+    # 方案 C: 如果都找不到，使用默认并打印警告
+    return fm.FontProperties()
 
+prop = set_chinese_font()
 
 
 @st.cache_data
@@ -102,4 +113,5 @@ try:
 
 except Exception as main_e:
     st.error(f"发生致命错误: {main_e}")
+
 
