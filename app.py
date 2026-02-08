@@ -95,14 +95,23 @@ try:
                 advice = get_ai_advice(top_food['Food_Name'], top_food['Protein_Value'], top_food['Fat_Value'])
                 st.write(advice)
 
-            with col2:
-                st.subheader("🔥 能量占比分析")
-                fig, ax = plt.subplots(figsize=(6, 4))
-                kcal_p, kcal_f = top_food['Protein_Value'] * 4, top_food['Fat_Value'] * 9
-                ax.pie([kcal_p, kcal_f], labels=['蛋白质热量', '脂肪热量'],
-                       autopct='%1.1f%%', colors=['#2ecc71', '#ff7f0e'],
-                       textprops={'fontproperties': prop}, startangle=140)
-                st.pyplot(fig)
+         with col2:
+    st.subheader("🔥 能量占比分析 (Energy Distribution)")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    
+    # 计算热量
+    kcal_p = top_food['Protein_Value'] * 4
+    kcal_f = top_food['Fat_Value'] * 9
+    
+    # --- 核心修改：标签改用英文，避免云端乱码 ---
+    ax.pie([kcal_p, kcal_f], 
+           labels=['Protein (Kcal)', 'Fat (Kcal)'], 
+           autopct='%1.1f%%', 
+           colors=['#2ecc71', '#ff7f0e'],
+           startangle=140)
+    
+    st.pyplot(fig)
+    st.caption("注：绿色代表蛋白质热量，橙色代表脂肪热量")
 
             st.divider()
             st.dataframe(filtered_df[['Food_Name', 'Protein_Value', 'Fat_Value']], use_container_width=True)
@@ -113,5 +122,6 @@ try:
 
 except Exception as main_e:
     st.error(f"发生致命错误: {main_e}")
+
 
 
