@@ -2,5 +2,4 @@ streamlit
 pandas
 matplotlib
 requests
-fpdf
-
+fpdf2
