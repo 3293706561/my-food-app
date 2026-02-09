@@ -3,94 +3,104 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import requests
+from fpdf import FPDF
 
-# --- 1. 基础配置 ---
-current_dir = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(current_dir, 'protein_vs_fat.csv')
-st.set_page_config(page_title="AI Nutrition Pro", page_icon="🥗", layout="wide")
 
-# --- 2. AI 点评逻辑 ---
-def get_ai_advice(food_name, protein, fat):
+# --- 1. 核心：AI 营养分析逻辑 ---
+def get_ai_advice(food_name, protein, fat, region):
     api_url = "https://api.deepseek.com/chat/completions"
-    
-    # --- 核心修改：从 secrets 中读取 Key ---
-    # 这里的名字必须和你刚才在 Secrets 窗口填的 DEEPSEEK_API_KEY 一模一样
+
+    # 安全读取 Secrets 里的 Key
     try:
         api_key = st.secrets["DEEPSEEK_API_KEY"]
     except:
-        return "未配置 API Key，请联系管理员。"
-    
-    # ... 下面的 headers 和 data 代码保持不变 ...
+        return "Please configure DEEPSEEK_API_KEY in Streamlit Secrets."
 
-    
-    prompt = (f"你是一位专业且略带幽默的健身教练。请评价食物：{food_name}。"
-              f"每100g含蛋白质{protein}g，脂肪{fat}g。"
-              f"请用一句话给出你的专业评价，并告诉大家适不适合在减脂期吃。")
-    
+    # 妈妈建议的：地域 + 产地 + 习惯提示词
+    prompt = f"""
+    你是一位精通中国饮食文化的营养专家。
+    当前食物：{food_name}（蛋白质：{protein}g，脂肪：{fat}g）。
+    当前用户地域习惯：{region}。
+    请提供：
+    1. 该食物在中国的主要产地或地标。
+    2. 针对{region}人群的健康食用建议。
+    3. 一句专业的营养评价。
+    注意：请用简洁的中文回答，不超过150字。
+    """
+
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     data = {
         "model": "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.8
+        "temperature": 0.7
     }
     try:
         response = requests.post(api_url, json=data, headers=headers, timeout=15)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']
-        else:
-            return f"AI 暂时不理你 (Error: {response.status_code})"
+        return response.json()['choices'][0]['message']['content']
     except:
-        return "AI 营养师去撸铁了，请稍后再试。"
+        return "AI coach is busy now. Please try again later."
 
-# --- 3. 数据加载 ---
-@st.cache_data
-def load_data():
-    return pd.read_csv(csv_path) if os.path.exists(csv_path) else pd.DataFrame()
 
-# --- 4. 主界面逻辑 ---
-df = load_data()
+# --- 2. 导出 PDF 逻辑 ---
+def create_pdf_report(name, p, f, advice):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="Nutrition Analysis Report", ln=True, align='C')
+    pdf.ln(10)
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt=f"Food: {name}", ln=True)
+    pdf.cell(200, 10, txt=f"Protein: {p}g", ln=True)
+    pdf.cell(200, 10, txt=f"Fat: {f}g", ln=True)
+    pdf.ln(5)
+    pdf.multi_cell(0, 10, txt=f"Advice: {advice.encode('latin-1', 'ignore').decode('latin-1')}")
+    return pdf.output(dest='S').encode('latin-1')
+
+
+# --- 3. 页面布局 ---
+st.set_page_config(page_title="AI Nutrition Lab", layout="wide")
 st.title("🥗 AI 智能营养实验室")
 
-if not df.empty:
-    search_term = st.sidebar.text_input("🔍 Search Food:", "Chicken")
-    filtered_df = df[df['Food_Name'].str.contains(search_term, case=False)].copy()
+# 侧边栏：地域选择
+st.sidebar.header("Settings")
+region = st.sidebar.selectbox(
+    "📍 选择饮食地域习惯：",
+    ["川渝地区 (Heavy Spice)", "北方地区 (High Salt/Carb)", "广东地区 (Light/Herbal)", "江浙沪 (Sweet/Fresh)"]
+)
+
+# 加载数据 (假设你的 CSV 还在)
+csv_path = os.path.join(os.path.dirname(__file__), 'protein_vs_fat.csv')
+if os.path.exists(csv_path):
+    df = pd.read_csv(csv_path)
+    search_term = st.text_input("🔍 搜索食物名称 (如 Chicken):", "Chicken")
+
+    filtered_df = df[df['Food_Name'].str.contains(search_term, case=False)]
 
     if not filtered_df.empty:
         top_food = filtered_df.iloc[0]
-        
-        col1, col2 = st.columns([1, 1])
-        
+
+        col1, col2 = st.columns(2)
         with col1:
-            st.subheader(f"📊 Indicators: {top_food['Food_Name'][:30]}")
-            m1, m2 = st.columns(2)
-            m1.metric("Protein (g)", top_food['Protein_Value'])
-            m2.metric("Fat (g)", top_food['Fat_Value'])
-            
-            st.info("💡 **AI Coach Advice:**")
-            advice = get_ai_advice(top_food['Food_Name'], top_food['Protein_Value'], top_food['Fat_Value'])
-            st.write(advice)
+            st.subheader("📊 Data & AI Advice")
+            st.metric("Protein", f"{top_food['Protein_Value']}g")
+            st.metric("Fat", f"{top_food['Fat_Value']}g")
+
+            # 获取 AI 建议
+            with st.spinner('AI is thinking...'):
+                advice = get_ai_advice(top_food['Food_Name'], top_food['Protein_Value'], top_food['Fat_Value'], region)
+            st.success(advice)
+
+            # PDF 下载按钮
+            report_data = create_pdf_report(top_food['Food_Name'], top_food['Protein_Value'], top_food['Fat_Value'],
+                                            advice)
+            st.download_button("📥 Download PDF Report", report_data, f"{top_food['Food_Name']}_report.pdf",
+                               "application/pdf")
 
         with col2:
-            st.subheader("🔥 Energy Distribution")
-            # 饼图绘制 (方案一：使用英文标签)
-            fig, ax = plt.subplots(figsize=(6, 4))
-            kcal_p = top_food['Protein_Value'] * 4
-            kcal_f = top_food['Fat_Value'] * 9
-            
-            # 使用英文标签 labels，绝不会乱码
-            ax.pie([kcal_p, kcal_f], 
-                   labels=['Protein Kcal', 'Fat Kcal'], 
-                   autopct='%1.1f%%', 
-                   colors=['#2ecc71', '#ff7f0e'],
-                   startangle=140)
-            
-            # 设置背景透明更符合 Streamlit 暗色模式
-            fig.patch.set_alpha(0)
+            st.subheader("🔥 Energy Chart")
+            fig, ax = plt.subplots()
+            ax.pie([top_food['Protein_Value'] * 4, top_food['Fat_Value'] * 9], labels=['Protein', 'Fat'],
+                   autopct='%1.1f%%', colors=['#2ecc71', '#ff7f0e'])
             st.pyplot(fig)
-            st.caption("Legend: Green = Protein energy, Orange = Fat energy")
-
-        st.divider()
-        st.dataframe(filtered_df[['Food_Name', 'Protein_Value', 'Fat_Value']])
-    else:
-        st.warning("No matches found.")
-
+else:
+    st.error("CSV file not found! Please check your GitHub repository.")
